@@ -6,122 +6,378 @@
 import pygame
 import random 
 import numpy as np
+import math
+
+
+
 
 pygame.init()
 
-
-SCREEN_WIDTH = 1400
+FPS = 40
+SCREEN_WIDTH = 800
 
 SCREEN_HEIGHT = 800
-
 # Set up the drawing window
 
 screen = pygame.display.set_mode([SCREEN_WIDTH, SCREEN_HEIGHT])
 pygame.font.init() # you have to call this at the start, 
 myfont = pygame.font.SysFont('Comic Sans MS', 30)
 
+class Snake():
+    def __init__(self,food_x=SCREEN_WIDTH/2,food_y=SCREEN_HEIGHT/2):
+        self.MOVING_SPEED = 40
+        self.body_coordinats = np.array([[SCREEN_WIDTH/2,SCREEN_HEIGHT/2],[SCREEN_WIDTH/2 -40,SCREEN_HEIGHT/2]])
+        self.last_coord = np.array([0,0])
+        self.move_x = 1
+        self.move_y = 0
+        self.food_x = food_x
+        self.food_y = food_y
+        self.hungry = 200
+        self.prev_move = 'none'
+        self.alive = True
+        self.SCORE = 1
+        self.time = 0
+        self.died_cause = 'none'
+        self.food = pygame.draw.circle(screen, (0, 0, 255), (self.food_x, self.food_y), 30)
+    
+    def move(self,move_x1,move_y1):
+        if self.alive:
+            body_coordinats = self.body_coordinats
 
+            if move_y1 == 1 and self.prev_move != 'down':
+                for i in range(len(body_coordinats)-1,0,-1):
+                    body_coordinats[i][:] = body_coordinats[i-1][:]
+                self.prev_move = 'up'
+                self.move_x = move_x1
+                self.move_y = move_y1
+                body_coordinats[0,1] -= self.MOVING_SPEED
+            elif move_x1 == 1 and self.prev_move !='left':
+                for i in range(len(body_coordinats)-1,0,-1):
+                    body_coordinats[i][:] = body_coordinats[i-1][:]
+                self.move_x = move_x1
+                self.move_y = move_y1
+                self.prev_move = 'right'
+                body_coordinats[0,0] += self.MOVING_SPEED
+            elif move_x1 == -1 and self.prev_move != 'right':
+                for i in range(len(body_coordinats)-1,0,-1):
+                    body_coordinats[i][:] = body_coordinats[i-1][:]
+                self.move_x = move_x1
+                self.move_y = move_y1
+                self.prev_move = 'left'
+                body_coordinats[0,0] -= self.MOVING_SPEED
+            elif move_y1 == -1 and self.prev_move != 'up':
+                for i in range(len(body_coordinats)-1,0,-1):
+                    body_coordinats[i][:] = body_coordinats[i-1][:]
+                self.move_x = move_x1
+                self.move_y = move_y1
+                self.prev_move = 'down'
+                body_coordinats[0,1] += self.MOVING_SPEED
+            else:
+                if self.move_y == 1 and self.prev_move != 'down':
+                    for i in range(len(body_coordinats)-1,0,-1):
+                        body_coordinats[i][:] = body_coordinats[i-1][:]
+                    body_coordinats[0,1] -= self.MOVING_SPEED
+                elif self.move_x == 1 and self.prev_move !='left':
+                    for i in range(len(body_coordinats)-1,0,-1):
+                        body_coordinats[i][:] = body_coordinats[i-1][:]
+                    self.prev_move = 'right'
+                    body_coordinats[0,0] += self.MOVING_SPEED
+                elif self.move_x == -1 and self.prev_move != 'right':
+                    for i in range(len(body_coordinats)-1,0,-1):
+                        body_coordinats[i][:] = body_coordinats[i-1][:]
+                    self.prev_move = 'left'
+                    body_coordinats[0,0] -= self.MOVING_SPEED
+                elif self.move_y == -1 and self.prev_move != 'up':
+                    for i in range(len(body_coordinats)-1,0,-1):
+                        body_coordinats[i][:] = body_coordinats[i-1][:]
+                    self.prev_move = 'down'
+                    body_coordinats[0,1] += self.MOVING_SPEED
+
+            
+
+            self.body_coordinats = body_coordinats
+
+            self.check_end()
+            if self.time == self.hungry:
+                self.alive = False
+                self.MOVING_SPEED = 0
+
+            
+            self.time += 1 
+            self.get_distances()
+
+        
+    
+    def draw(self):
+        body_coordinats = self.body_coordinats
+        for i in range(1,len(body_coordinats)):
+            pygame.draw.rect(screen,(0,80+ i%2 *60,0),(body_coordinats[i,0],body_coordinats[i,1],self.MOVING_SPEED,self.MOVING_SPEED))
+        
+        self.food_x = int(self.food_x/40) * 40
+        self.food_y = int(self.food_y/40) * 40
+    
+        self.food = pygame.draw.rect(screen, (255, 0, 0), (self.food_x, self.food_y,40,40))
+        return pygame.draw.rect(screen,(0,50,0),(body_coordinats[0,0],body_coordinats[0,1],self.MOVING_SPEED,self.MOVING_SPEED))
+    def get_died_cause(self):
+        return self.died_cause
+    def check_collision_with_body(self):
+        head = self.body_coordinats[0]
+        body = self.body_coordinats[1:]
+        for elem in body:
+            if (head == elem).sum() == 2:
+                return True
+        return False
+
+
+    def food_manipulations(self,head,new_food_x,new_food_y):
+        self.last_coord[:] = self.body_coordinats[len(self.body_coordinats)-1][:]
+        last_coord = self.last_coord
+        if self.food.colliderect(head):
+            self.hungry += 100
+            self.food_x = new_food_x
+            self.food_y = new_food_y
+            self.body_coordinats = np.vstack([self.body_coordinats,last_coord])
+            self.SCORE += 1
+
+
+    def check_end(self):
+        if self.body_coordinats[0,0] <= 0 or self.body_coordinats[0,0] >= SCREEN_WIDTH or self.body_coordinats[0,1] <= 0 or self.body_coordinats[0,1] >= SCREEN_HEIGHT:
+            self.alive = False
+            self.MOVING_SPEED = 0
+            
+        if self.check_collision_with_body() :
+            self.alive = False
+            self.MOVING_SPEED = 0
+            self.died_cause = 'hit_body'
+        
+    
+    def get_alive(self):
+        return self.alive
+
+    def get_score(self):
+        return 100*(self.SCORE + 0.5*(self.time -self.time/self.SCORE)/ (self.time + self.time/self.SCORE))
+
+    def get_distances(self):
+        head = self.body_coordinats[0]
+        l_d,r_d,u_d,d_d = head[0],SCREEN_WIDTH-head[0],head[1],SCREEN_HEIGHT-head[1]
+        r_db,l_db,d_db,u_db = r_d,l_d,d_d,u_d
+        for i in range(len(self.body_coordinats[0:])):
+            if head[1] == self.body_coordinats[i,1]:
+                if head[0] < self.body_coordinats[i,0] and abs(head[0] - self.body_coordinats[i,0]) < r_db:
+                    r_db = abs(head[0] - self.body_coordinats[i,0])
+                if head[0] > self.body_coordinats[i,0] and abs(head[0] - self.body_coordinats[i,0]) < l_db :
+                    l_db = abs(head[0] - self.body_coordinats[i,0])
+
+            if head[0] == self.body_coordinats[i,0]:
+                if head[1] < self.body_coordinats[i,1] and abs(head[1] - self.body_coordinats[i,1]) < d_db:
+                    d_db = abs(head[1] - self.body_coordinats[i,1])
+                if head[1] > self.body_coordinats[i,1] and abs(head[1] - self.body_coordinats[i,1]) < u_db :
+                    u_db = abs(head[1] - self.body_coordinats[i,1])
+        
+        r_d-=40
+        l_d-=40
+        d_d-=40
+        u_d-=40
+        
+        r_db-=40
+        l_db-=40
+        d_db-=40
+        u_db-=40
+       
+        if self.prev_move == 'up':
+            x1,x2,x3,x4 = 1,0,0,0
+        elif self.prev_move == 'down':
+            x1,x2,x3,x4 = 0,1,0,0
+        elif self.prev_move == 'right':
+            x1,x2,x3,x4 = 0,0,1,0
+        elif self.prev_move == 'left':
+            x1,x2,x3,x4 = 0,0,0,1
+        food_1=0
+        food_2=0
+        food_3=0
+        food_4=0
+        if self.food_x == head[0]:
+            if self.food_y > head[1]:
+                food_1 = self.food_y - head[1]
+            elif self.food_y < head[1]:
+                food_2 = head[1] - self.food_y
+        elif self.food_y == head[1]:
+            if self.food_x > head[0]:
+                food_3 = self.food_x - head[0]
+            elif self.food_x < head[0]:
+                food_4 = head[0] - self.food_x
+        
+        food_1= food_1/SCREEN_HEIGHT
+        food_2= food_2/SCREEN_HEIGHT
+        food_3=food_3/SCREEN_WIDTH
+        food_4=food_4/SCREEN_WIDTH
+        food_5 = 0
+        if self.food_x > head[0]:
+            food_5 = 1
+        food_6 = 0
+        if self.food_y > head[1]:
+            food_6 = 1
+            
+
+        ##return (l_d/SCREEN_WIDTH,r_d/SCREEN_WIDTH,u_d/SCREEN_HEIGHT,d_d/SCREEN_HEIGHT,r_db/SCREEN_WIDTH,l_db/SCREEN_WIDTH,d_db/SCREEN_HEIGHT,u_db/SCREEN_HEIGHT,food_xr1,food_xr2,food_yr1,food_yr2)
+        return (u_db/SCREEN_HEIGHT,r_db/SCREEN_WIDTH,d_db/SCREEN_HEIGHT,l_db/SCREEN_WIDTH,u_d/SCREEN_HEIGHT,r_d/SCREEN_WIDTH,d_d/SCREEN_HEIGHT,l_d/SCREEN_WIDTH,x1,x2,x3,x4,food_1,food_2,food_3,food_4,food_5,food_6)
+    
+    def set_start(self):
+        self.__init__()
+
+
+
+
+def f(x):
+    return (np.exp(x) - np.exp(-x))/(np.exp(x) + np.exp(-x))
+
+class NeuralNetwork():
+    ## n - size of hidden layer
+    ## size - size of input vector
+    def __init__(self,n = 100,size = 18):
+        self.size = size
+        self.n = n
+        self.w_i_h = np.random.uniform(-1,1,(n,size+1))
+        self.w_h_h = np.random.uniform(-1,1,(n,n+1))
+        self.w_h_o = np.random.uniform(-1,1,(4,n+1))
+    
+    def predict_direction(self,x):
+        x = np.append(x,1)
+        values_ = f(np.dot(self.w_i_h,x))
+        values_ = np.append(values_,1)
+        values_h = f(np.dot(self.w_h_h,values_))
+        values_h = f(np.append(values_h,1))
+        output = np.dot(self.w_h_o,values_h)
+        dir = np.argmax(output)
+        ##print(dir)
+
+       ## print(output)
+        if dir == 0:## U
+            return [0,1]
+        if dir == 1:## R
+            return [1,0]
+        if dir == 2:## D
+            return [0,-1]
+        if dir == 3:## L
+            return [-1,0]
+    
+    def Mutation(self):
+        self.w_i_h = self.w_i_h + np.random.uniform(-1,1,(self.n,self.size+1))/4
+        self.w_h_h = self.w_h_h +  np.random.uniform(-1,1,(self.n,self.n+1))/4
+        self.w_h_o = self.w_h_o +  np.random.uniform(-1,1,(4,self.n+1))/4
+
+
+    
+    def set_values(self,w_h_i,w_h_h,w_h_o):
+        self.w_i_h = w_h_i
+        self.w_h_h = w_h_h
+        self.w_h_o = w_h_o
+        
+    def get_values(self):
+        return (np.copy(self.w_i_h),np.copy(self.w_h_h),np.copy(self.w_h_o))
+        
+def shaffle(snakes,snakes_nn,score):
+    ##print(sorted(zip(score,snakes),key = lambda x: x[0],reverse = True))
+    snakes = [x for _,x in sorted(zip(score,snakes),key = lambda x: x[0],reverse = True)]
+    ##print(sorted(zip(score,snakes),key = lambda x: x[0],reverse = True))
+    snakes_nn = [x for _,x in sorted(zip(score,snakes_nn),key = lambda x: x[0],reverse = True)]
+    score = sorted(score)
+    return snakes,snakes_nn,score
+
+def merge(snakes,snakes_nn):
+    j = NUM//10
+
+    for i in range(j,len(snakes_nn)):
+        z = snakes_nn[i%(j+1)].get_values()
+        snakes_nn[i].set_values(z[0],z[1],z[2])
+        snakes_nn[i].Mutation()
+    
+    return snakes,snakes_nn
+
+def refresh(snakes,score,food_x,food_y):
+    for i in range(len(snakes)):
+        snakes[i].__init__(food_x,food_y)
+        score[i] = 0
+    return snakes,score
+    
 
 # Run until the user asks to quit
-FPS = 10
+
 clock = pygame.time.Clock()
 running = True
 
-food_x = 400
-food_y = 400 
-SCORE = 0
 
 ##if move_x == -1 - it means that head moves to left across x axis
-move_x = 1
-move_y = 0
 
-MOVING_SPEED = 80
 
-body_coordinats = np.array([[100,100],[20,20]])
-last_coord = np.array([0,0])
-
-def draw_snake():
-    for i in range(1,len(body_coordinats)):
-        pygame.draw.rect(screen,(100+ i%2 *100 ,30+ i%2 *100,i%2 *100),(body_coordinats[i,0],body_coordinats[i,1],80,80))
-    return pygame.draw.rect(screen,(50,50,50),(body_coordinats[0,0],body_coordinats[0,1],80,80))
-
-def move_snake():
-
-    for i in range(len(body_coordinats)-1,0,-1):
-        body_coordinats[i][:] = body_coordinats[i-1][:]
-
-    if move_y == 1:
-        body_coordinats[0,1] -= MOVING_SPEED
-    elif move_x == 1:
-        body_coordinats[0,0] += MOVING_SPEED
-    elif move_x == -1:
-        body_coordinats[0,0] -= MOVING_SPEED
-    elif move_y == -1:
-        body_coordinats[0,1] += MOVING_SPEED
-
-def check_collision(head,body):
-    for elem in body:
-        if (head == elem).sum() == 2:
-            return True
-    return False
-
+snakes = list()
+snakes_nn = list()
+snake_move = list()
+NUM = 100
+for i in range(NUM):
+    snakes.append(Snake())
+    snakes_nn.append(NeuralNetwork())
+    snake_move.append([1,0])
 
 while running:
-
     # Did the user click the window close button?
-
     for event in pygame.event.get():
         
         if event.type == pygame.QUIT:
             running = False
-        elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_UP and move_y != -1:
-                move_y = 1
-                move_x = 0
-            elif event.key == pygame.K_RIGHT and move_x != -1:
-                move_y = 0
-                move_x = 1
-            elif event.key == pygame.K_LEFT and move_x != 1:
-                move_y = 0
-                move_x = -1
-            elif event.key == pygame.K_DOWN and move_y != 1:
-                move_y = -1
-                move_x =  0
-    last_coord[:] = body_coordinats[len(body_coordinats)-1][:]
-   
-
-
-    ## Check if head collides with borders
-    if body_coordinats[0,0] <= 0 or body_coordinats[0,0] >= SCREEN_WIDTH - 80 or body_coordinats[0,1] <= 0 or body_coordinats[0,1] >= SCREEN_HEIGHT - 80:
-        running = False
-        break;
-    if check_collision(body_coordinats[0],body_coordinats[1:]):
-        running = False
-        break;
-    move_snake()
-
-    # Fill the background with white
+    alives = list()
+    score = list()
+    dir = 'UP'
     screen.fill((255, 255, 255))
-    head = draw_snake()
+    new_food_x = random.randint(2*40,SCREEN_WIDTH-2*40)//40 * 40
+    new_food_y = random.randint(2*40,SCREEN_HEIGHT-2*40) // 40 * 40
+    for i in range(NUM):
+        alives.append(snakes[i].get_alive())
+        snakes[i].move(snake_move[i][0],snake_move[i][1])
+        head = snakes[i].draw()
+        snakes[i].food_manipulations(head,new_food_x,new_food_y)
+        score.append(snakes[i].get_score())
 
-    food =  pygame.draw.circle(screen, (0, 0, 255), (food_x, food_y), 30)
+
+        if alives[i]:
+            snake_move[i] = snakes_nn[i].predict_direction(snakes[i].get_distances())
+
+
+
+    screen.fill((255, 255, 255))
+    if snake_move[0] == [-1,0]:
+        dir = 'LEFT'
+    elif snake_move[0] == [1,0]:
+        dir = 'RIGHT'
+    elif snake_move[0] == [0,1]:
+        dir = 'UP'
+    elif snake_move[0] == [0,-1]:
+        dir = 'DOWN'
+
+    ## All snakes are dead
+    if np.any(alives) == False:
+        snakes, snakes_nn, score = shaffle(snakes,snakes_nn,score)
+        snakes, snakes_nn = merge(snakes,snakes_nn)
+        snakes,score = refresh(snakes,score,np.random.randint(100,SCREEN_WIDTH-100)//40 * 40,np.random.randint(100,SCREEN_HEIGHT)//40 * 40)    
+        print("Dead")
+
+    ##print(alives)
     
-    ## Text
-    # if you want to use this module.
-    textsurface = myfont.render('Score = {}'.format(SCORE),False,(255,0,0))
+    head = snakes[0].draw()
+    textsurface = myfont.render('Alive = {}'.format(sum(alives)),False,(255,0,0))
     screen.blit(textsurface,(0,0))
-    
-        
+    textsurface = myfont.render('Score = {}'.format(score[0]),False,(255,0,0))
+    screen.blit(textsurface,(0,40))
+    textsurface = myfont.render('Dir = {}'.format(dir),False,(255,0,0))
+    screen.blit(textsurface,(0,80))
+    textsurface = myfont.render('Dir = {}'.format(snake_move[0]),False,(255,0,0))
+    screen.blit(textsurface,(0,120))
+    textsurface = myfont.render('Died = {}'.format(snakes[0].died_cause),False,(255,0,0))
+    screen.blit(textsurface,(0,140))
 
-    ## Check collision of head with food
-    if food.colliderect(head):
-        food_x = random.randint(2*food.size[0],SCREEN_WIDTH-2*food.size[0])
-        food_y = random.randint(2*food.size[0],SCREEN_HEIGHT-2*food.size[0])
-        
-        print(body_coordinats,last_coord)
-        
-        body_coordinats = np.vstack([body_coordinats,last_coord])
-        SCORE += 5
+
+
+
 
 
     pygame.display.update()
